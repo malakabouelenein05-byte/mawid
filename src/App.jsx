@@ -28,7 +28,7 @@ export default function App() {
       booking_time: newBooking.time,
       status: "confirmed"
     }]).select();
-    if (error) { console.error(error); alert("خطأ: " + error.message); }
+    if (error) { console.error(error); }
     else {
       setBookings([data[0], ...bookings]);
       setNewBooking({ client: "", service: "", time: "", staff: "منى", phone: "" });
@@ -41,10 +41,15 @@ export default function App() {
     if (!error) setBookings(bookings.map(b => b.id === id ? { ...b, status: "confirmed" } : b));
   };
 
+  const deleteBooking = async (id) => {
+    if (!window.confirm("هل أنت متأكد من حذف هذا الحجز؟")) return;
+    const { error } = await supabase.from("bookings").delete().eq("id", id);
+    if (!error) setBookings(bookings.filter(b => b.id !== id));
+  };
+
   const styles = {
     page: { minHeight: "100vh", backgroundColor: "#f9fafb", fontFamily: "Arial, sans-serif", direction: "rtl" },
     header: { backgroundColor: "#ffffff", borderBottom: "1px solid #e5e7eb", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" },
-    logo: { display: "flex", alignItems: "center", gap: "12px" },
     logoIcon: { width: "40px", height: "40px", backgroundColor: "#7c3aed", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: "bold", fontSize: "18px" },
     logoText: { fontWeight: "bold", fontSize: "20px", color: "#111827" },
     logoSub: { fontSize: "12px", color: "#6b7280", margin: 0 },
@@ -61,10 +66,11 @@ export default function App() {
     avatar: { width: "44px", height: "44px", backgroundColor: "#ede9fe", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#7c3aed", fontWeight: "bold", fontSize: "16px", marginLeft: "12px" },
     clientName: { fontWeight: "600", fontSize: "15px", color: "#111827" },
     clientSub: { fontSize: "13px", color: "#6b7280" },
-    timeText: { fontWeight: "bold", fontSize: "15px", color: "#111827", textAlign: "left" },
+    timeText: { fontWeight: "bold", fontSize: "15px", color: "#111827", textAlign: "center" },
     confirmBtn: { backgroundColor: "#7c3aed", color: "white", border: "none", padding: "4px 12px", borderRadius: "8px", fontSize: "12px", cursor: "pointer", marginTop: "4px" },
     confirmedBadge: { fontSize: "12px", color: "#16a34a", marginTop: "4px" },
-    phoneBtn: { width: "36px", height: "36px", backgroundColor: "#dcfce7", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none", fontSize: "16px", marginRight: "8px" },
+    phoneBtn: { width: "36px", height: "36px", backgroundColor: "#dcfce7", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none", fontSize: "16px" },
+    deleteBtn: { width: "36px", height: "36px", backgroundColor: "#fee2e2", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", cursor: "pointer", border: "none" },
     rightSide: { display: "flex", alignItems: "center", gap: "8px" },
     overlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000 },
     modal: { backgroundColor: "white", width: "100%", maxWidth: "480px", borderRadius: "24px 24px 0 0", padding: "24px" },
@@ -93,7 +99,7 @@ export default function App() {
   return (
     <div style={styles.page}>
       <div style={styles.header}>
-        <div style={styles.logo}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <div style={styles.logoIcon}>م</div>
           <div>
             <div style={styles.logoText}>موعد</div>
@@ -147,6 +153,7 @@ export default function App() {
                   )}
                 </div>
                 <a href={`tel:${b.client_phone}`} style={styles.phoneBtn}>📞</a>
+                <button style={styles.deleteBtn} onClick={() => deleteBooking(b.id)}>🗑️</button>
               </div>
             </div>
           ))
