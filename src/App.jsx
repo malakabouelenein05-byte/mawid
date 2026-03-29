@@ -5,14 +5,17 @@ export default function App() {
   const [bookings, setBookings] = useState([]);
   const [showAdd, setShowAdd] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [newBooking, setNewBooking] = useState({ client: "", service: "", time: "", staff: "منى", phone: "" });
+  const [newBooking, setNewBooking] = useState({ client: "", service: "", time: "", staff: "منى", phone: "", date: new Date().toISOString().split("T")[0] });
   const [activeTab, setActiveTab] = useState("today");
+  const [editingId, setEditingId] = useState(null);
+  const [editTime, setEditTime] = useState("");
+  const [editDate, setEditDate] = useState("");
 
   useEffect(() => { fetchBookings(); }, []);
 
   const fetchBookings = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("bookings").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("bookings").select("*").order("booking_date", { ascending: true });
     if (error) console.error(error);
     else setBookings(data || []);
     setLoading(false);
@@ -26,12 +29,13 @@ export default function App() {
       service: newBooking.service,
       staff_name: newBooking.staff,
       booking_time: newBooking.time,
+      booking_date: newBooking.date,
       status: "confirmed"
     }]).select();
     if (error) { console.error(error); }
     else {
-      setBookings([data[0], ...bookings]);
-      setNewBooking({ client: "", service: "", time: "", staff: "منى", phone: "" });
+      setBookings([...bookings, data[0]].sort((a, b) => a.booking_date > b.booking_date ? 1 : -1));
+      setNewBooking({ client: "", service: "", time: "", staff: "منى", phone: "", date: new Date().toISOString().split("T")[0] });
       setShowAdd(false);
     }
   };
@@ -46,6 +50,26 @@ export default function App() {
     const { error } = await supabase.from("bookings").delete().eq("id", id);
     if (!error) setBookings(bookings.filter(b => b.id !== id));
   };
+
+  const saveEdit = async (id) => {
+    const { error } = await supabase.from("bookings")
+      .update({ booking_time: editTime, booking_date: editDate })
+      .eq("id", id);
+    if (!error) {
+      setBookings(bookings.map(b => b.id === id ? { ...b, booking_time: editTime, booking_date: editDate } : b));
+      setEditingId(null);
+      setEditTime("");
+      setEditDate("");
+    }
+  };
+
+  const today = new Date().toISOString().split("T")[0];
+
+  const filteredBookings = bookings.filter(b => {
+    if (activeTab === "today") return b.booking_date === today;
+    if (activeTab === "upcoming") return b.booking_date > today;
+    return true;
+  });
 
   const styles = {
     page: { minHeight: "100vh", backgroundColor: "#f9fafb", fontFamily: "Arial, sans-serif", direction: "rtl" },
@@ -66,11 +90,13 @@ export default function App() {
     avatar: { width: "44px", height: "44px", backgroundColor: "#ede9fe", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#7c3aed", fontWeight: "bold", fontSize: "16px", marginLeft: "12px" },
     clientName: { fontWeight: "600", fontSize: "15px", color: "#111827" },
     clientSub: { fontSize: "13px", color: "#6b7280" },
+    clientDate: { fontSize: "11px", color: "#9ca3af", marginTop: "2px" },
     timeText: { fontWeight: "bold", fontSize: "15px", color: "#111827", textAlign: "center" },
     confirmBtn: { backgroundColor: "#7c3aed", color: "white", border: "none", padding: "4px 12px", borderRadius: "8px", fontSize: "12px", cursor: "pointer", marginTop: "4px" },
     confirmedBadge: { fontSize: "12px", color: "#16a34a", marginTop: "4px" },
     phoneBtn: { width: "36px", height: "36px", backgroundColor: "#dcfce7", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none", fontSize: "16px" },
     deleteBtn: { width: "36px", height: "36px", backgroundColor: "#fee2e2", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", cursor: "pointer", border: "none" },
+    editBtn: { width: "36px", height: "36px", backgroundColor: "#e0f2fe", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", cursor: "pointer", border: "none" },
     rightSide: { display: "flex", alignItems: "center", gap: "8px" },
     overlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000 },
     modal: { backgroundColor: "white", width: "100%", maxWidth: "480px", borderRadius: "24px 24px 0 0", padding: "24px" },
@@ -82,19 +108,20 @@ export default function App() {
     cancelBtn: { flex: 1, backgroundColor: "#f3f4f6", color: "#6b7280", border: "none", padding: "14px", borderRadius: "12px", fontSize: "15px", cursor: "pointer" },
     loadingText: { textAlign: "center", padding: "40px", color: "#6b7280", fontSize: "16px" },
     emptyText: { textAlign: "center", padding: "40px", color: "#6b7280", fontSize: "14px" },
+    editInput: { border: "1px solid #7c3aed", borderRadius: "8px", padding: "4px 8px", fontSize: "12px", width: "90px", textAlign: "center", outline: "none", marginBottom: "4px" },
+    saveEditBtn: { backgroundColor: "#7c3aed", color: "white", border: "none", padding: "4px 10px", borderRadius: "8px", fontSize: "12px", cursor: "pointer" },
+    dateLabel: { fontSize: "12px", color: "#6b7280", marginBottom: "4px", display: "block" },
   };
 
+  const todayBookings = bookings.filter(b => b.booking_date === today).length;
+  const upcomingBookings = bookings.filter(b => b.booking_date > today).length;
+
   const stats = [
-    { label: "حجوزات اليوم", value: bookings.length, icon: "📅" },
-    { label: "العملاء النشطون", value: new Set(bookings.map(b => b.client_phone)).size, icon: "👥" },
-    { label: "ساعات العمل", value: "8", icon: "🕐" },
+    { label: "حجوزات اليوم", value: todayBookings, icon: "📅" },
+    { label: "حجوزات قادمة", value: upcomingBookings, icon: "🗓️" },
+    { label: "إجمالي العملاء", value: new Set(bookings.map(b => b.client_phone)).size, icon: "👥" },
     { label: "تذكيرات أُرسلت", value: bookings.filter(b => b.reminder_sent).length, icon: "🔔" },
   ];
-
-  const filteredBookings = bookings.filter(b => {
-    if (activeTab === "upcoming") return b.status === "pending";
-    return true;
-  });
 
   return (
     <div style={styles.page}>
@@ -141,18 +168,35 @@ export default function App() {
                 <div>
                   <div style={styles.clientName}>{b.client_name}</div>
                   <div style={styles.clientSub}>{b.service} · {b.staff_name}</div>
+                  <div style={styles.clientDate}>{b.booking_date}</div>
                 </div>
               </div>
               <div style={styles.rightSide}>
                 <div style={{ textAlign: "center" }}>
-                  <div style={styles.timeText}>{b.booking_time}</div>
-                  {b.status === "pending" ? (
-                    <button style={styles.confirmBtn} onClick={() => confirmBooking(b.id)}>تأكيد ✓</button>
+                  {editingId === b.id ? (
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
+                      <input style={styles.editInput} value={editTime}
+                        onChange={e => setEditTime(e.target.value)} placeholder="الوقت" />
+                      <input style={{...styles.editInput, width: "120px"}} type="date"
+                        value={editDate} onChange={e => setEditDate(e.target.value)} />
+                      <div style={{ display: "flex", gap: "4px" }}>
+                        <button style={styles.saveEditBtn} onClick={() => saveEdit(b.id)}>✓ حفظ</button>
+                        <button style={{...styles.saveEditBtn, backgroundColor:"#6b7280"}} onClick={() => setEditingId(null)}>✕</button>
+                      </div>
+                    </div>
                   ) : (
-                    <div style={styles.confirmedBadge}>✓ مؤكد</div>
+                    <>
+                      <div style={styles.timeText}>{b.booking_time}</div>
+                      {b.status === "pending" ? (
+                        <button style={styles.confirmBtn} onClick={() => confirmBooking(b.id)}>تأكيد ✓</button>
+                      ) : (
+                        <div style={styles.confirmedBadge}>✓ مؤكد</div>
+                      )}
+                    </>
                   )}
                 </div>
                 <a href={`tel:${b.client_phone}`} style={styles.phoneBtn}>📞</a>
+                <button style={styles.editBtn} onClick={() => { setEditingId(b.id); setEditTime(b.booking_time); setEditDate(b.booking_date); }}>✏️</button>
                 <button style={styles.deleteBtn} onClick={() => deleteBooking(b.id)}>🗑️</button>
               </div>
             </div>
@@ -182,6 +226,9 @@ export default function App() {
               <option>منى</option>
               <option>ريم</option>
             </select>
+            <label style={styles.dateLabel}>التاريخ</label>
+            <input style={styles.input} type="date" min={today}
+              value={newBooking.date} onChange={e => setNewBooking({ ...newBooking, date: e.target.value })} />
             <input style={styles.input} placeholder="الوقت (مثال: 3:00 م)"
               value={newBooking.time} onChange={e => setNewBooking({ ...newBooking, time: e.target.value })} />
             <div style={styles.modalBtns}>
@@ -194,3 +241,4 @@ export default function App() {
     </div>
   );
 }
+
