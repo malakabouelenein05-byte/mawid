@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
+import { useAuth } from "./context/AuthContext";
 
 export default function App() {
+  const { user, signOut } = useAuth();
   const [bookings, setBookings] = useState([]);
+  const [business, setBusiness] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [loading, setLoading] = useState(true);
   const [newBooking, setNewBooking] = useState({ client: "", service: "", time: "", staff: "منى", phone: "", date: new Date().toISOString().split("T")[0] });
@@ -11,11 +14,25 @@ export default function App() {
   const [editTime, setEditTime] = useState("");
   const [editDate, setEditDate] = useState("");
 
-  useEffect(() => { fetchBookings(); }, []);
+  useEffect(() => {
+    if (user) {
+      fetchBookings();
+      fetchBusiness();
+    }
+  }, [user]);
+
+  const fetchBusiness = async () => {
+    const { data } = await supabase.from("businesses").select("*").eq("user_id", user.id).single();
+    if (data) setBusiness(data);
+  };
 
   const fetchBookings = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("bookings").select("*").order("booking_date", { ascending: true });
+    const { data, error } = await supabase
+      .from("bookings")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("booking_date", { ascending: true });
     if (error) console.error(error);
     else setBookings(data || []);
     setLoading(false);
@@ -24,6 +41,7 @@ export default function App() {
   const addBooking = async () => {
     if (!newBooking.client || !newBooking.service || !newBooking.time) return;
     const { data, error } = await supabase.from("bookings").insert([{
+      user_id: user.id,
       client_name: newBooking.client,
       client_phone: newBooking.phone,
       service: newBooking.service,
@@ -58,13 +76,15 @@ export default function App() {
     if (!error) {
       setBookings(bookings.map(b => b.id === id ? { ...b, booking_time: editTime, booking_date: editDate } : b));
       setEditingId(null);
-      setEditTime("");
-      setEditDate("");
     }
   };
 
-  const today = new Date().toISOString().split("T")[0];
+  const handleSignOut = async () => {
+    await signOut();
+    window.location.href = "/login";
+  };
 
+  const today = new Date().toISOString().split("T")[0];
   const filteredBookings = bookings.filter(b => {
     if (activeTab === "today") return b.booking_date === today;
     if (activeTab === "upcoming") return b.booking_date > today;
@@ -78,6 +98,7 @@ export default function App() {
     logoText: { fontWeight: "bold", fontSize: "20px", color: "#111827" },
     logoSub: { fontSize: "12px", color: "#6b7280", margin: 0 },
     addBtn: { backgroundColor: "#7c3aed", color: "white", border: "none", padding: "10px 20px", borderRadius: "12px", fontSize: "14px", fontWeight: "600", cursor: "pointer" },
+    signOutBtn: { backgroundColor: "transparent", color: "#9ca3af", border: "1px solid #e5e7eb", padding: "8px 14px", borderRadius: "10px", fontSize: "13px", cursor: "pointer", marginRight: "8px" },
     content: { maxWidth: "800px", margin: "0 auto", padding: "24px 16px" },
     statsGrid: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px", marginBottom: "24px" },
     statCard: { backgroundColor: "white", borderRadius: "16px", padding: "16px", border: "1px solid #f3f4f6", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" },
@@ -130,10 +151,13 @@ export default function App() {
           <div style={styles.logoIcon}>م</div>
           <div>
             <div style={styles.logoText}>موعد</div>
-            <p style={styles.logoSub}>صالون لمى - القاهرة الجديدة</p>
+            <p style={styles.logoSub}>{business ? `${business.name} - ${business.location}` : "..."}</p>
           </div>
         </div>
-        <button style={styles.addBtn} onClick={() => setShowAdd(true)}>+ حجز جديد</button>
+        <div style={{ display: "flex", alignItems: "center" }}>
+          <button style={styles.signOutBtn} onClick={handleSignOut}>تسجيل الخروج</button>
+          <button style={styles.addBtn} onClick={() => setShowAdd(true)}>+ حجز جديد</button>
+        </div>
       </div>
 
       <div style={styles.content}>
